@@ -127,6 +127,8 @@ cargo test
 - Jens Axboe. *Efficient IO with io_uring*.
 - TigerBeetle. [*Tiger Style*](https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md),
   for static allocation and putting a limit on everything.
+- Phil Eaton. [*A Database Without Dynamic Memory Allocation*](https://tigerbeetle.com/blog/2022-10-12-a-database-without-dynamic-memory/),
+  TigerBeetle blog, 2022.
 - Peter Mbanugo. [*Why queues don't fix overload, and what to do instead*](https://pmbanugo.me/blog/why-queues-dont-fix-overload-and-what-to-do-instead).
 - Lu et al. *WiscKey: Separating Keys from Values in SSD-conscious Storage*, FAST 2016.
 - Dayan, Athanassoulis, Idreos. *Monkey: Optimal Navigable Key-Value Store*, SIGMOD 2017.
