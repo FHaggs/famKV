@@ -1,9 +1,10 @@
 use super::{Buf, FileId};
 
+
 /// Fixed set of completion slots, allocated once at startup. Its capacity is
 /// the limit on operations in flight.
 #[derive(Debug)]
-pub struct CompletionArena {
+pub(crate) struct CompletionArena {
     slots: Vec<Slot>,
     /// First free slot. `None` means the arena is full.
     free_head: Option<u32>,
@@ -40,8 +41,8 @@ pub struct Output {
 enum Slot {
     /// Unused. `next` links the free slots into an intrusive list.
     Free { next: Option<u32> },
-    /// Submitted; the kernel may be using the buffer.
-    InFlight(Op),
+    /// Has owner; the kernel may be using the buffer.
+    Pending(Op),
     /// Completed; waiting for the owner to take the result.
     Done { op: Op, result: i32 },
     /// The owner gave up, but the kernel has not answered yet. Keeps the
@@ -58,3 +59,26 @@ enum Slot {
 //         -> Result<Output, CompletionHandle>;                          // Done -> Free
 //     fn abandon(&mut self, h: CompletionHandle) -> Option<Op>;         // InFlight -> Abandoned, Done -> Free
 // }
+impl CompletionArena {
+    pub(crate) fn new(capacity: u32) -> Self {
+        assert!(capacity > 0);
+        let  slots: Vec<Slot> = (0..capacity)
+            .map(|i| Slot::Free { next: (i + 1 < capacity).then_some(i + 1) }).collect();
+        Self {slots, free_head: Some(0)}
+    }
+    pub(crate) fn alloc(&mut self, op: Op) -> Result<CompletionHandle, Op> {
+        let Some(idx) = self.free_head else {return Err(op)};
+
+        let slot = &mut self.slots[idx as usize];
+        let Slot::Free{next} = *slot else {unreachable!("free_head points to a slot in use")}; 
+        self.free_head = next;
+        *slot = Slot::Pending(op);
+
+        Ok(CompletionHandle { idx })
+    }
+    // Called by the IoEngine when the kernel has completed an operation
+    pub(crate) fn complete() {todo!()}
+    
+
+
+}
