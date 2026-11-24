@@ -87,7 +87,7 @@ Two things follow from the limits above:
 
 ## Status
 
-Early. The IO layer is being designed and the project does not build yet.
+Early. The types of the IO layer are in place; none of it is implemented yet.
 
 - [ ] Buffer pool
 - [ ] Completion arena and handles
@@ -103,10 +103,14 @@ Early. The IO layer is being designed and the project does not build yet.
 
 ```
 src/
+  lib.rs
   main.rs
   io/
-    mod.rs          the Io trait
-    completion.rs   completion slots and operations
+    mod.rs          the Io trait and FileId
+    buf.rs          buffer pool and buffer handles
+    completion.rs   completion arena, slots and operations
+  wal/
+    mod.rs          write-ahead log writer
 ```
 
 This will grow as the pieces above land.
