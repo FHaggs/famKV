@@ -1,6 +1,5 @@
 use super::{Buf, FileId};
 
-
 /// Fixed set of completion slots, allocated once at startup. Its capacity is
 /// the limit on operations in flight.
 #[derive(Debug)]
@@ -62,15 +61,25 @@ enum Slot {
 impl CompletionArena {
     pub(crate) fn new(capacity: u32) -> Self {
         assert!(capacity > 0);
-        let  slots: Vec<Slot> = (0..capacity)
-            .map(|i| Slot::Free { next: (i + 1 < capacity).then_some(i + 1) }).collect();
-        Self {slots, free_head: Some(0)}
+        let slots: Vec<Slot> = (0..capacity)
+            .map(|i| Slot::Free {
+                next: (i + 1 < capacity).then_some(i + 1),
+            })
+            .collect();
+        Self {
+            slots,
+            free_head: Some(0),
+        }
     }
     pub(crate) fn alloc(&mut self, op: Op) -> Result<CompletionHandle, Op> {
-        let Some(idx) = self.free_head else {return Err(op)};
+        let Some(idx) = self.free_head else {
+            return Err(op);
+        };
 
         let slot = &mut self.slots[idx as usize];
-        let Slot::Free{next} = *slot else {unreachable!("free_head points to a slot in use")}; 
+        let Slot::Free { next } = *slot else {
+            unreachable!("free_head points to a slot in use")
+        };
         self.free_head = next;
         *slot = Slot::Pending(op);
 
@@ -80,21 +89,72 @@ impl CompletionArena {
     pub(crate) fn complete(&mut self, idx: u32, result: i32) -> Option<Op> {
         let slot = &mut self.slots[idx as usize];
 
-        match std::mem::replace(slot, Slot::Free { next: self.free_head }) {
+        match std::mem::replace(
+            slot,
+            Slot::Free {
+                next: self.free_head,
+            },
+        ) {
             Slot::Pending(op) => {
                 *slot = Slot::Done { op, result };
                 None
-            },
+            }
             Slot::Abandoned(op) => {
                 self.free_head = Some(idx);
                 Some(op)
             }
-            other => unreachable!("kernel completed a slot that was not in flight. Slot state: {:?}", other),
+            other => unreachable!(
+                "kernel completed a slot that was not in flight. Slot state: {:?}",
+                other
+            ),
         }
     }
 
-    pub(crate) fn try_take(&mut self, handle: CompletionHandle) -> Result<
-    
+    pub(crate) fn try_take(
+        &mut self,
+        handle: CompletionHandle,
+    ) -> Result<Output, CompletionHandle> {
+        let slot = &mut self.slots[handle.idx as usize];
+
+        match std::mem::replace(
+            slot,
+            Slot::Free {
+                next: self.free_head,
+            },
+        ) {
+            Slot::Done { op, result } => {
+                self.free_head = Some(handle.idx);
+                Ok(Output { op, result })
+            }
+            pending @ Slot::Pending(_) => {
+                *slot = pending;
+                Err(handle)
+            }
+            other => unreachable!(
+                "try_take on a slot that has no owner. Slot state: {:?}",
+                other
+            ),
+        }
+    }
+
+    pub(crate) fn abandon(&mut self, handle: CompletionHandle) -> Option<Op> {
+        let slot = &mut self.slots[handle.idx as usize];
+
+        match std::mem::replace(slot, Slot::Free { next: self.free_head }) {
+            Slot::Pending(op) => {
+                *slot = Slot::Abandoned(op);
+                None
+            }
+            Slot::Done { op, result } => {
+                self.free_head = Some(handle.idx);
+                Some(op)
+            }
+            other => unreachable!(
+                "abandon on a slot that has no owner. Slot state: {:?}",
+                other
+            ),
+        }
+    }
 
 
 }
