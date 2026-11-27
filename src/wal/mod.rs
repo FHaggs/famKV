@@ -12,7 +12,7 @@ pub enum Progress {
 pub struct WalWriter {}
 
 impl WalWriter {
-    pub fn step<I: Io>(&mut self, _io: &mut I) -> Progress {
+    pub fn step<I: Io>(&mut self, io: &mut I) -> Progress {
         todo!()
     }
 }

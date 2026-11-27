@@ -16,7 +16,7 @@ pub(crate) struct CompletionArena {
 #[derive(Debug)]
 #[must_use]
 pub struct CompletionHandle {
-    idx: u32,
+    pub idx: u32,
 }
 
 /// What the kernel was asked to do. Holds everything that must stay alive
@@ -49,15 +49,6 @@ enum Slot {
     Abandoned(Op),
 }
 
-// TODO:
-// impl CompletionArena {
-//     fn new(capacity: u32) -> Self;
-//     fn alloc(&mut self, op: Op) -> Result<CompletionHandle, Op>;      // Free -> Pending
-//     fn complete(&mut self, idx: u32, result: i32) -> Option<Op>;      // Pending -> Done, Abandoned -> Free
-//     fn try_take(&mut self, h: CompletionHandle)
-//         -> Result<Output, CompletionHandle>;                          // Done -> Free
-//     fn abandon(&mut self, h: CompletionHandle) -> Option<Op>;         // Pending -> Abandoned, Done -> Free
-// }
 impl CompletionArena {
     pub(crate) fn new(capacity: u32) -> Self {
         assert!(capacity > 0);
@@ -145,7 +136,7 @@ impl CompletionArena {
                 *slot = Slot::Abandoned(op);
                 None
             }
-            Slot::Done { op, result } => {
+            Slot::Done { op, .. } => {
                 self.free_head = Some(handle.idx);
                 Some(op)
             }
@@ -155,6 +146,41 @@ impl CompletionArena {
             ),
         }
     }
+}
 
 
+mod tests {
+    use std::fs::File;
+
+use super::*;
+
+    #[test]
+    fn alloc_and_complete() {
+        let mut arena = CompletionArena::new(1);
+        let op = Op::Fsync { fd: FileId(42) };
+        let handle = arena.alloc(op).unwrap();
+        assert!(arena.alloc(Op::Fsync { fd: FileId(43) }).is_err());
+        assert!(arena.complete(handle.idx, 0).is_none());
+        let output = arena.try_take(handle).unwrap();
+        match output.op {
+            Op::Fsync { fd } => assert_eq!(fd, FileId(42)),
+            _ => panic!("unexpected op"),
+        }
+        assert_eq!(output.result, 0);
+    }
+    #[test]
+    fn try_take_lifetime() {
+        let mut arena = CompletionArena::new(2);
+        let op1 = Op::Fsync { fd: FileId(42) };
+        let handle1 = arena.alloc(op1).unwrap();
+        
+        let handle1 = match arena.try_take(handle1) {
+            Ok(_) => panic!("It should fail to get uncompleted result"),
+            Err(handle) => handle,
+        };
+        arena.complete(handle1.idx, 1);
+        let completed = arena.try_take(handle1).unwrap();
+        assert!(completed.result == 1);
+
+    }
 }

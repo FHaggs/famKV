@@ -1,6 +1,6 @@
 pub mod buf;
 pub mod completion;
-
+use std::io;
 pub use buf::{Buf, BufferPool};
 pub use completion::{CompletionHandle, Op, Output};
 pub(crate) use completion::CompletionArena;
@@ -10,9 +10,11 @@ pub(crate) use completion::CompletionArena;
 ///
 /// `Copy` on purpose: several operations may target the same file at once.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FileId(u32);
+pub struct FileId(pub u32);
 
 pub trait Io {
+    fn open(&mut self, path: &str) -> io::Result<FileId>;
+
     /// `None` when the pool is empty: backpressure.
     fn acquire(&mut self) -> Option<Buf>;
     fn release(&mut self, buf: Buf);
