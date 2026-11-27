@@ -13,6 +13,10 @@ pub(crate) use completion::CompletionArena;
 pub struct FileId(u32);
 
 pub trait Io {
+    /// `None` when the pool is empty: backpressure.
+    fn acquire(&mut self) -> Option<Buf>;
+    fn release(&mut self, buf: Buf);
+
     /// On a full arena the buffer is handed back in `Err`.
     fn read(&mut self, fd: FileId, offset: u64, buf: Buf) -> Result<CompletionHandle, Buf>;
     /// On a full arena the buffer is handed back in `Err`.

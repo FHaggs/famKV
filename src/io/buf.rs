@@ -1,30 +1,43 @@
-use std::ptr::NonNull;
+use std::ops::{Deref, DerefMut};
 
-/// Fixed set of aligned blocks, allocated once at startup.
-#[derive(Debug)]
-pub struct BufferPool {
-    /// One allocation of `n_blocks * BLOCK_SIZE` bytes, aligned to 4096.
-    base: NonNull<u8>,
-    /// Indices of free blocks. Preallocated with `n_blocks`, never grows.
-    free: Vec<u32>,
-}
+pub const BLOCK_SIZE: usize = 4096;
+
+#[derive(Clone, Debug)]
+#[repr(C, align(4096))]
+struct Block([u8; BLOCK_SIZE]);
 
 /// Owned handle to one block of the pool.
 ///
-/// No `Clone` or `Copy`: a block has exactly one owner, and it goes back to
-/// the pool through `BufferPool::release`.
-/// TODO: no pointers, just index
+/// # Leaks
+///
+/// A `Buf` goes back to the pool only through [`BufferPool::release`].
+/// Dropping one without releasing it is safe, but the block is lost for the
+/// rest of the program: the pool never gets it back. Nothing checks this,
+/// neither the compiler nor a runtime assertion, so returning every `Buf` is
+/// the caller's responsibility.
 #[derive(Debug)]
-pub struct Buf {
-    ptr: NonNull<u8>,
-    /// Which block this is, so it can be returned to the pool.
-    idx: u32,
-    /// Valid bytes, `<= BLOCK_SIZE`.
-    len: u32,
+pub struct Buf(&'static mut Block);
+
+impl Deref for Buf {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] { &self.0.0 }
 }
-// TODO:
-// impl BufferPool {
-//     fn new(n_blocks: u32) -> Self;
-//     fn acquire(&mut self) -> Option<Buf>;   // None = backpressure
-//     fn release(&mut self, buf: Buf);        // consumes the handle
-// }
+impl DerefMut for Buf {
+    fn deref_mut(&mut self) -> &mut [u8] { &mut self.0.0 }
+}
+
+pub struct BufferPool {
+    free: Vec<Buf>,
+}
+
+impl BufferPool {
+    pub fn new(n_blocks: usize) -> Self {
+        let blocks = vec![Block([0; BLOCK_SIZE]); n_blocks].into_boxed_slice();
+        let blocks: &'static mut [Block] = Box::leak(blocks);
+        Self { free: blocks.iter_mut().map(Buf).collect() }
+    }
+
+    pub fn acquire(&mut self) -> Option<Buf> { self.free.pop() }
+
+    pub fn release(&mut self, buf: Buf) { self.free.push(buf); }
+}

@@ -89,8 +89,8 @@ Two things follow from the limits above:
 
 Early. The types of the IO layer are in place; none of it is implemented yet.
 
-- [ ] Buffer pool
-- [ ] Completion arena and handles
+- [x] Buffer pool
+- [x] Completion arena and handles
 - [ ] io_uring backend (read, write, fsync)
 - [ ] Simulated IO backend for tests (DST)
 - [ ] Write-ahead log and recovery
