@@ -53,11 +53,11 @@ enum Slot {
 // TODO:
 // impl CompletionArena {
 //     fn new(capacity: u32) -> Self;
-//     fn alloc(&mut self, op: Op) -> Result<CompletionHandle, Op>;      // Free -> InFlight
-//     fn complete(&mut self, idx: u32, result: i32) -> Option<Op>;      // InFlight -> Done, Abandoned -> Free
+//     fn alloc(&mut self, op: Op) -> Result<CompletionHandle, Op>;      // Free -> Pending
+//     fn complete(&mut self, idx: u32, result: i32) -> Option<Op>;      // Pending -> Done, Abandoned -> Free
 //     fn try_take(&mut self, h: CompletionHandle)
 //         -> Result<Output, CompletionHandle>;                          // Done -> Free
-//     fn abandon(&mut self, h: CompletionHandle) -> Option<Op>;         // InFlight -> Abandoned, Done -> Free
+//     fn abandon(&mut self, h: CompletionHandle) -> Option<Op>;         // Pending -> Abandoned, Done -> Free
 // }
 impl CompletionArena {
     pub(crate) fn new(capacity: u32) -> Self {
@@ -77,7 +77,23 @@ impl CompletionArena {
         Ok(CompletionHandle { idx })
     }
     // Called by the IoEngine when the kernel has completed an operation
-    pub(crate) fn complete() {todo!()}
+    pub(crate) fn complete(&mut self, idx: u32, result: i32) -> Option<Op> {
+        let slot = &mut self.slots[idx as usize];
+
+        match std::mem::replace(slot, Slot::Free { next: self.free_head }) {
+            Slot::Pending(op) => {
+                *slot = Slot::Done { op, result };
+                None
+            },
+            Slot::Abandoned(op) => {
+                self.free_head = Some(idx);
+                Some(op)
+            }
+            other => unreachable!("kernel completed a slot that was not in flight. Slot state: {:?}", other),
+        }
+    }
+
+    pub(crate) fn try_take(&mut self, handle: CompletionHandle) -> Result<
     
 
 

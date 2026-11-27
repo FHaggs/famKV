@@ -2,7 +2,8 @@ pub mod buf;
 pub mod completion;
 
 pub use buf::{Buf, BufferPool};
-pub use completion::{CompletionArena, CompletionHandle, Output};
+pub use completion::{CompletionHandle, Op, Output};
+pub(crate) use completion::CompletionArena;
 
 /// Identifies an open file. An index into the file table owned by the `Io`
 /// implementation, not a raw fd, so a simulated backend can hand them out too.

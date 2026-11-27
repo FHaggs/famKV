@@ -13,6 +13,7 @@ pub struct BufferPool {
 ///
 /// No `Clone` or `Copy`: a block has exactly one owner, and it goes back to
 /// the pool through `BufferPool::release`.
+/// TODO: no pointers, just index
 #[derive(Debug)]
 pub struct Buf {
     ptr: NonNull<u8>,
@@ -21,7 +22,6 @@ pub struct Buf {
     /// Valid bytes, `<= BLOCK_SIZE`.
     len: u32,
 }
-
 // TODO:
 // impl BufferPool {
 //     fn new(n_blocks: u32) -> Self;
